@@ -9,6 +9,7 @@
 
 #include "list.h"
 #include "utils.h"
+#include "bitmask.h"
 #include "atomic_trie.h"
 
 #define MAX_FILE_NAME_LEN 128
@@ -199,18 +200,12 @@ char *format_word(char *word)
 
 char *get_next_word(char *str, size_t size, int *offset) {
     int index = *offset, len = 0;
-    static char buffer[128] = {0};
+    char buffer[128] = {0};
 
     while (index < size && !IS_LETTER(str[index]))
         index++;
     
     while (index < size) {
-        // if (index > 1155 && index < 1192) {
-        //     if (str[index] == ' ')
-        //         putc('x',  stdout);
-        //     else
-        //         putc(str[index], stdout);
-        // }
         if (str[index] == ' ' || str[index] == '\n') {
             index++;
             break;
@@ -226,9 +221,7 @@ char *get_next_word(char *str, size_t size, int *offset) {
         index++;
         len++;
     }
-    // if (size == 4448)
-    // printf("LEN %d | word %s\n", index, buffer);
-    // buffer[len] = 0;
+
     *offset = index;
     if (len == 0)
         return NULL;
@@ -244,32 +237,29 @@ char *get_next_word(char *str, size_t size, int *offset) {
 void process_file(FileInfo *file_info, AtomicTrie *trie, List *words_info)
 {
     int fd = open(file_info->name, O_RDONLY, S_IRUSR | S_IWUSR);
-    // CHECK_FILE(file);
-    // printf("%s %ld\n", file_info->name, file_info->size);
 
-    char *file_map = mmap(NULL, file_info->size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+    char *file_map = mmap(NULL, file_info->size, PROT_READ, MAP_PRIVATE, fd, 0);
     CHECK_MALLOC(file_map);
 
     int offset = 0;
-    char *word = get_next_word(file_map, file_info->size, &offset); // strtok(file_map, " ,.!?:;\'_");
+    char *word = get_next_word(file_map, file_info->size, &offset);
 
     while (word) {
 
-        char *formatted_word = word; //format_word(word);
-        if (!has_word_from_file(trie, formatted_word, file_info->id)) {
+        if (!has_word_from_file(trie, word, file_info->id)) {
             WordInfo *word_info = calloc(1, sizeof(*word_info));
             CHECK_MALLOC(word_info);
 
-            word_info->word = formatted_word;
+            word_info->word = word;
             word_info->file_id = file_info->id;
 
-            insert_word_from_file(trie, formatted_word, file_info->id);
+            insert_word_from_file(trie, word, file_info->id);
             push_back(words_info, word_info);
             
         } else {
-            free(formatted_word);
+            free(word);
         }
-        word = get_next_word(file_map, file_info->size, &offset); // strtok(NULL, " ,.!?:;\'_");
+        word = get_next_word(file_map, file_info->size, &offset);
     }
 
     munmap(file_map, file_info->size);
@@ -283,15 +273,12 @@ void *mapper(void *arg)
     ThreadArgs *args = (ThreadArgs*)arg;
     int file_index;
 
-    while ((file_index = pick_file(args->job)) >= 0)
+    while ((file_index = pick_file(args->job)) >= 0) {
+        printf("Proccesing file %d\n", file_index);
         process_file(&args->job->files_info[file_index], args->trie, args->partial_results[args->id]);
-   
-    // printf("Mapper %d done!\n", args->id);
-    // for (ListNode *node = args->partial_results[args->id]->head; node; node = node->next) {
-    //     WordInfo *wi = node->data;
-    //     printf("%s %d\n", wi->word, wi->file_id);
-    // }
+    }
 
+    puts("Done mapping");
     pthread_barrier_wait(&args->job->barrier);
     return NULL;
 }
@@ -307,24 +294,42 @@ void write_result(char letter, List *words)
     for (ListNode *node = words->head; node; node = node->next) {
         KeyValuePair *word_info = node->data;
         fprintf(file, "%s:[", word_info->key);
-        List *files = (List*)word_info->value;
-        for (ListNode *fnode = files->head; fnode; fnode = fnode->next) {
-            fprintf(file, "%d", *(int*)fnode->data);
+        // List *files = (List*)word_info->value;
+        // for (ListNode *fnode = files->head; fnode; fnode = fnode->next) {
+        //     fprintf(file, "%d", *(int*)fnode->data);
             
-            if (fnode->next)
-                fprintf(file, " ");
-        }
+        //     if (fnode->next)
+        //         fprintf(file, " ");
+        // }
+        // puts(word_info->value);
+
+        int is_empty = 1;
+        for (int i = START_ID; i < BITMASK_SIZE; i++)
+            if (has_bit(word_info->value, i)) {
+                if (is_empty) {
+                    fprintf(file, "%d", i);
+                    is_empty = 0;
+                }
+                else {
+                    fprintf(file, " %d", i);
+                }
+            }
+
       
         fprintf(file, "]\n");
     }
 
     for (ListNode *node = words->head; node; node = node->next) {
         KeyValuePair *word_info = node->data;
-        List *files = (List*)word_info->value;
-        for (ListNode *fnode = files->head; fnode; fnode = fnode->next) {
-            free(fnode->data);
-        }
-        free_nodes(files, free);
+        // List *files = (List*)word_info->value;
+        // for (ListNode *fnode = files->head; fnode; fnode = fnode->next) {
+        //     free(fnode->data);
+        // }
+        // free_nodes(files, free);
+        free(((Bitmask *)word_info->value)->bits);
+        // free(word_info->value);
+
+
         free(word_info->key);
         free(word_info);
     }
@@ -338,11 +343,10 @@ void write_result(char letter, List *words)
 int compare_word_freq(const void *x, const void *y)
 {
     const KeyValuePair *kv1 = ((ListNode*)x)->data, *kv2 = ((ListNode*)y)->data;
-    int freq1 = ((List*)kv1->value)->size;
-    int freq2 = ((List*)kv2->value)->size;
-    if (freq1 == freq2)
-        return strcmp(kv1->key, kv2->key);
-    return freq2 - freq1;
+    // unsigned long long freq1 = *((unsigned long long*)kv1->value); //((List*)kv1->value)->size;
+    // unsigned long long freq2 = *((unsigned long long*)kv2->value);//((List*)kv2->value)->size;
+    int r = compare_bitmasks(kv2->value, kv1->value);
+    return r;
 }
 
 
@@ -356,11 +360,11 @@ void *reducer(void *arg)
     int end = (args->id + 1) * (double)args->job->args->M / args->job->args->R;
     end = MIN(end, args->job->args->M);
 
-    for (int i = start; i < end; i++)
-        for (ListNode *node = args->partial_results[i]->head; node; node = node->next)
-            add_word_in_file_group(args->trie, ((WordInfo*)node->data)->word, ((WordInfo*)node->data)->file_id);
+    // for (int i = start; i < end; i++)
+    //     for (ListNode *node = args->partial_results[i]->head; node; node = node->next)
+    //         insert_word_from_file(args->trie, ((WordInfo*)node->data)->word, ((WordInfo*)node->data)->file_id);
 
-    pthread_barrier_wait(&args->job->reducers_barrier);
+    // pthread_barrier_wait(&args->job->reducers_barrier);
 
     start = args->id * (double)ALPHABET_SIZE / args->job->args->R;
     end = (args->id + 1) * (double)ALPHABET_SIZE / args->job->args->R;
@@ -369,8 +373,11 @@ void *reducer(void *arg)
     for (int i = start; i < end; i++)
         get_words_starting_with_letter(args->trie, 'a' + i, args->final_results[i]);
 
-    for (int i = start; i < end; i++)
+    puts("Sorting...");
+    for (int i = start; i < end; i++) {
+        // printf("List %d done\n", i);
         sort_list(args->final_results[i], compare_word_freq);
+    }
 
     for (int i = start; i < end; i++)
         write_result('a' + i, args->final_results[i]);
@@ -409,7 +416,7 @@ void run_job(JobInfo *job)
         thread_args[i].id = i - (job->args->M * (i >= job->args->M));
         thread_args[i].partial_results = partial_results;
         thread_args[i].final_results = final_results;
-        thread_args[i].trie = i < job->args->M? mappersTrie : reducersTrie;
+        thread_args[i].trie = mappersTrie; // i < job->args->M? mappersTrie : reducersTrie;
     }
 
     // Create threads

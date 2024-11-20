@@ -27,7 +27,7 @@ int _has_word(Node *node, char *word, int len, int file_id)
     if (len == 0) {
         if (node->value == NULL)
             return 0;
-        return NODE_BITMASK(file_id);
+        return has_bit(node->value, file_id);
     }
     
     if (node->children == NULL) {
@@ -56,10 +56,10 @@ void _insert_word_from_file(Node *node, char *word, int len, int file_id)
     if (len == 0) {
         pthread_mutex_lock(&node->lock);
         if (node->value == NULL) {
-            node->value = calloc(BITMASK_SIZE, sizeof(char));
+            node->value = create_bitmask(); //calloc(NODE_BITMASK_ALLOC_SIZE);
             CHECK_MALLOC(node->value);
         }
-        NODE_BITMASK(file_id) = FILE_HAS_WORD;
+        set_bit(node->value, file_id);
         pthread_mutex_unlock(&node->lock);
 
         return;

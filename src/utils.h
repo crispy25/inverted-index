@@ -19,6 +19,4 @@
 
 #define MIN(x, y) (x > y ? y : x)
 
-
-
 #endif

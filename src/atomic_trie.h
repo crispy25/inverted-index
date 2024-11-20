@@ -5,9 +5,11 @@
 #include <pthread.h>
 
 #include "list.h"
+#include "bitmask.h"
 
 #define ALPHABET_SIZE 26
-#define BITMASK_SIZE 512
+#define BITMASK_SIZE 1024
+
 #define FILE_HAS_WORD '1'
 
 
