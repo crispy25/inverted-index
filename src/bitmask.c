@@ -3,6 +3,7 @@
 #include "bitmask.h"
 #include "utils.h"
 
+
 Bitmask *create_bitmask()
 {
     Bitmask *bitmask = calloc(1, sizeof(*bitmask));

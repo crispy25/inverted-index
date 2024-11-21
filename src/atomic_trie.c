@@ -2,10 +2,9 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "atomic_trie.h"
 #include "utils.h"
-
-#define NODE_BITMASK(i) ((char*)node->value)[i]
+#include "structs.h"
+#include "atomic_trie.h"
 
 
 AtomicTrie *create_atomic_tree()
@@ -22,7 +21,7 @@ AtomicTrie *create_atomic_tree()
 }
 
 
-int _has_word(Node *node, char *word, int len, int file_id)
+int _has_word(TrieNode *node, char *word, int len, int file_id)
 {
     if (len == 0) {
         if (node->value == NULL)
@@ -51,12 +50,12 @@ int has_word_from_file(AtomicTrie *trie, char *word, int file_id)
 }
 
 
-void _insert_word_from_file(Node *node, char *word, int len, int file_id)
+void _insert_word_from_file(TrieNode *node, char *word, int len, int file_id)
 {
     if (len == 0) {
         pthread_mutex_lock(&node->lock);
         if (node->value == NULL) {
-            node->value = create_bitmask(); //calloc(NODE_BITMASK_ALLOC_SIZE);
+            node->value = create_bitmask();
             CHECK_MALLOC(node->value);
         }
         set_bit(node->value, file_id);
@@ -67,7 +66,7 @@ void _insert_word_from_file(Node *node, char *word, int len, int file_id)
 
     pthread_mutex_lock(&node->lock);
     if (node->children == NULL) {
-        node->children = calloc(ALPHABET_SIZE, sizeof(Node*));
+        node->children = calloc(ALPHABET_SIZE, sizeof(TrieNode*));
         CHECK_MALLOC(node->children);
     }
     pthread_mutex_unlock(&node->lock);
@@ -76,7 +75,7 @@ void _insert_word_from_file(Node *node, char *word, int len, int file_id)
     int key = word[0] - 'a';
     pthread_mutex_lock(&node->lock);
     if (node->children[key] == NULL) {
-        node->children[key] = calloc(1, sizeof(Node));
+        node->children[key] = calloc(1, sizeof(TrieNode));
         CHECK_MALLOC(node->children[key]);
     
         node->children[key]->letter = word[0];
@@ -102,62 +101,7 @@ void insert_word_from_file(AtomicTrie *trie, char *word, int file_id)
 }
 
 
-void _add_word_in_file_group(Node *node, char *word, int len, int file_id)
-{
-    if (len == 0) {
-        pthread_mutex_lock(&node->lock);
-        if (node->value == NULL) {
-            node->value = create_list();
-        }
-        int *data = malloc(sizeof(*data));
-        CHECK_MALLOC(data);
-        
-        *data = file_id; 
-        push_back(node->value, data);
-
-        pthread_mutex_unlock(&node->lock);
-
-        return;
-    }
-
-    pthread_mutex_lock(&node->lock);
-    if (node->children == NULL) {
-        node->children = calloc(ALPHABET_SIZE, sizeof(Node*));
-        CHECK_MALLOC(node->children);
-    }
-    pthread_mutex_unlock(&node->lock);
-
-
-    int key = word[0] - 'a';
-
-    pthread_mutex_lock(&node->lock);
-    if (node->children[key] == NULL) {
-        node->children[key] = calloc(1, sizeof(Node));
-        CHECK_MALLOC(node->children[key]);
-
-        node->children[key]->letter = word[0];
-        pthread_mutex_init(&node->children[key]->lock, NULL);
-        pthread_mutex_unlock(&node->lock);
-
-        _add_word_in_file_group(node->children[key], word + 1, len - 1, file_id);
-        return;
-    }
-    pthread_mutex_unlock(&node->lock);
-
-    _add_word_in_file_group(node->children[key], word + 1, len - 1, file_id);
-}
-
-
-void add_word_in_file_group(AtomicTrie *trie, char *word, int file_id)
-{
-    if (!word)
-        return;
-
-    _add_word_in_file_group(trie->root, word, strlen(word), file_id);
-}
-
-
-void _get_words_starting_with_letter(Node *node, char *word, int len, List *words)
+void _get_words_starting_with_letter(TrieNode *node, char *word, int len, List *words)
 {
     // Node represens last letter in a word
     if (node->value) {
@@ -194,15 +138,14 @@ void get_words_starting_with_letter(AtomicTrie *trie, char letter, List *words)
     if (trie->root->children[letter - 'a'] == NULL)
         return;
     
-    char word[32] = {0};
+    char word[128] = {0};
     word[0] = letter;
 
     _get_words_starting_with_letter(trie->root->children[letter - 'a'], word, 1 , words);
 }
 
 
-
-void _destroy_node(Node *node)
+void _destroy_node(TrieNode *node)
 {
     if (node == NULL)
         return;
@@ -210,13 +153,11 @@ void _destroy_node(Node *node)
     if (node->children) {
         for (int i = 0; i < ALPHABET_SIZE; i++)
             _destroy_node(node->children[i]);
-
         free(node->children);
     }
 
     if (node->value)
         free(node->value);
-
 
     pthread_mutex_destroy(&node->lock);
     free(node);

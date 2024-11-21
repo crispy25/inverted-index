@@ -9,6 +9,7 @@ typedef struct ListNode {
     void *data;
 } ListNode;
 
+
 typedef struct List {
     ListNode *head;
     ListNode *tail;
@@ -22,5 +23,6 @@ void push_back(List *list, void *data);
 void sort_list(List *list, int (*comp)(const void*, const void*));
 void free_nodes(List *list, void (*free_func)(void*));
 void free_list(List **list, void (*free_func)(void*));
+
 
 #endif
