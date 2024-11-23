@@ -44,7 +44,6 @@ JobInfo *init_job(Args *args)
 
     pthread_mutex_init(&job_info->task_lock, NULL);
     pthread_barrier_init(&job_info->barrier, NULL, args->M + args->R);
-    pthread_barrier_init(&job_info->reducers_barrier, NULL, args->R);
 
     FILE* master_file = fopen(args->file, "r");
     if (!master_file) {
@@ -163,7 +162,6 @@ void free_job_info(JobInfo **job_info)
 
     pthread_mutex_destroy(&(*job_info)->task_lock);
     pthread_barrier_destroy(&(*job_info)->barrier);   
-    pthread_barrier_destroy(&(*job_info)->reducers_barrier);   
 
     free((*job_info)->files_info);
     free(*job_info);

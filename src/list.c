@@ -51,38 +51,42 @@ void push_back(List *list, void *data)
 }
 
 
-void sort_list(List *list, int (*comp)(const void*, const void*))
-{
-    if (!list || !list->head || list->size == 1)
+// Sort the list descending using counting sort
+// The key of a node is given by the get_key function
+void sort_list(List *list, int (*get_key)(void*))
+{   
+    if (!list || !list->size)
         return;
 
-    int len = list->size, i = 0;
-    ListNode **nodes = calloc(len, sizeof(*nodes));
-    
-    for (ListNode* node = list->head; node; node = node->next)
-        nodes[i++] = node;
+    int max_value = 0;
+    for (ListNode *node = list->head; node; node = node->next)
+        max_value = MAX(max_value, get_key(node));
 
-    // qsort(nodes, len, sizeof(list->head), comp);
-    for (int i = 1; i < len; i++) {
-        void *value = nodes[i];
-        int pos = i - 1;
+    int *freq = calloc(max_value + 1, sizeof(*freq));
+    CHECK_MALLOC(freq);
 
-        while (pos >= 0 && comp(nodes[pos], value) > 0) {
-            nodes[pos + 1] =  nodes[pos];
-            pos -= 1;
-        }
-        nodes[pos + 1] = value;
+    for (ListNode *node = list->head; node; node = node->next)
+        freq[get_key(node)]++;
+
+    for (int i = 1; i <= max_value; i++)
+        freq[i] += freq[i - 1];
+
+    ListNode **sorted_list = calloc(list->size, sizeof(*sorted_list));
+    CHECK_MALLOC(sorted_list);
+
+    for (ListNode *node = list->head; node; node = node->next) {
+        int ones = get_key(node);
+        sorted_list[freq[ones] - 1] = node;
+        freq[ones]--;
     }
 
-    nodes[len - 1]->next = NULL;
-    list->head = nodes[0];
-    ListNode *prev = list->head;
-    for (i = 1; i < len; i++) {
-        prev->next = nodes[i];
-        prev = prev->next;
-    }
+    list->head = sorted_list[list->size - 1];
+    sorted_list[0]->next = NULL;
+    for (int i = list->size - 2; i >= 0; i--)
+        sorted_list[i + 1]->next = sorted_list[i];
 
-    free(nodes);
+    free(freq);
+    free(sorted_list);
 }
 
 

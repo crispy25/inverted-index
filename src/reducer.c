@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 
 #include "list.h"
 #include "utils.h"
@@ -39,11 +40,26 @@ void write_result(char letter, List *words)
 }
 
 
-// Compare word frequency in distinct files, and if equal, lexicographically
-int compare_word_freq(const void *x, const void *y)
+// Get the frequency of a word stored in a node
+int get_word_freq(void *node)
 {
-    const KeyValuePair *kv1 = ((ListNode*)x)->data, *kv2 = ((ListNode*)y)->data;
-    return compare_bitmasks(kv2->value, kv1->value);
+    return ((Bitmask*)((KeyValuePair*)((ListNode*)node)->data)->value)->ones;
+}
+
+
+// Pick the next available letter to process
+int pick_a_letter(JobInfo *job)
+{
+    int index = -1;
+
+    pthread_mutex_lock(&job->task_lock);
+    if (job->result_index < ALPHABET_SIZE) {
+        index = job->result_index;
+        job->result_index++;
+    }
+    pthread_mutex_unlock(&job->task_lock);
+
+    return index;
 }
 
 
@@ -54,21 +70,15 @@ void *reducer(void *arg)
 
     // Wait for Mapper threads to finish
     pthread_barrier_wait(&args->job->barrier);
-    
-    int start, end;
 
-    start = args->id * (double)ALPHABET_SIZE / args->job->args->R;
-    end = (args->id + 1) * (double)ALPHABET_SIZE / args->job->args->R;
-    end = MIN(end, ALPHABET_SIZE);
+    int index;
+    while ((index = pick_a_letter(args->job)) >= 0) {
+        get_words_starting_with_letter(args->trie, 'a' + index, args->results[index]);
 
-    for (int i = start; i < end; i++)
-        get_words_starting_with_letter(args->trie, 'a' + i, args->results[i]);
+        sort_list(args->results[index], get_word_freq);
 
-    for (int i = start; i < end; i++)
-        sort_list(args->results[i], compare_word_freq);
-
-    for (int i = start; i < end; i++)
-        write_result('a' + i, args->results[i]);
+        write_result('a' + index, args->results[index]);
+    }
 
     return NULL;
 }

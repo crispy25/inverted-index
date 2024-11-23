@@ -18,10 +18,15 @@ typedef struct List {
 
 
 List *create_list();
+
 void push_front(List *list, void *data);
+
 void push_back(List *list, void *data);
-void sort_list(List *list, int (*comp)(const void*, const void*));
+
+void sort_list(List *list, int (*get_key)(void *));
+
 void free_nodes(List *list, void (*free_func)(void*));
+
 void free_list(List **list, void (*free_func)(void*));
 
 

@@ -138,7 +138,7 @@ void get_words_starting_with_letter(AtomicTrie *trie, char letter, List *words)
     if (trie->root->children[letter - 'a'] == NULL)
         return;
     
-    char word[128] = {0};
+    char word[MAX_WORD_LEN] = {0};
     word[0] = letter;
 
     _get_words_starting_with_letter(trie->root->children[letter - 'a'], word, 1 , words);

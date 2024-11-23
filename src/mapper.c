@@ -13,13 +13,13 @@
 // Pick the next available file
 int pick_file(JobInfo *job)
 {
-    if (job->file_index >= job->file_count)
-        return -1;
-
     int file_id = -1;
-    pthread_mutex_lock(&job->task_lock);
-    file_id = job->file_index;
-    job->file_index += 1;
+
+    pthread_mutex_lock(&job->task_lock);    
+    if (job->file_index < job->file_count) {
+        file_id = job->file_index;
+        job->file_index += 1;
+    }
     pthread_mutex_unlock(&job->task_lock);
 
     return file_id;
@@ -84,8 +84,8 @@ void process_file(FileInfo *file_info, AtomicTrie *trie)
 void *mapper(void *arg)
 {
     ThreadArgs *args = (ThreadArgs*)arg;
-    int file_index;
 
+    int file_index;
     while ((file_index = pick_file(args->job)) >= 0) {
         process_file(&args->job->files_info[file_index], args->trie);
     }

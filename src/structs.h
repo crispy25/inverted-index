@@ -18,12 +18,18 @@ typedef struct FileInfo {
 } FileInfo;
 
 
+typedef struct KeyValuePair {
+    char *key;
+    void *value;
+} KeyValuePair;
+
+
 typedef struct JobInfo {
     Args *args;
     FileInfo *files_info;
     pthread_mutex_t task_lock;
-    size_t file_count, file_index;
-    pthread_barrier_t barrier, reducers_barrier;
+    pthread_barrier_t barrier;
+    size_t file_count, file_index, result_index;
 } JobInfo;
 
 
@@ -33,12 +39,6 @@ typedef struct ThreadArgs {
     JobInfo *job;
     List **results;
 } ThreadArgs;
-
-
-typedef struct KeyValuePair {
-    char *key;
-    void *value;
-} KeyValuePair;
 
 
 #endif

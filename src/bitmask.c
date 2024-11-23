@@ -34,5 +34,5 @@ void clear_bit(Bitmask *bitmask, int pos)
 
 int compare_bitmasks(Bitmask *bitmask1, Bitmask *bitmask2)
 {
-    return bitmask1->ones > bitmask2->ones;
+    return bitmask1->ones - bitmask2->ones;
 }
