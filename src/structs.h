@@ -28,8 +28,8 @@ typedef struct JobInfo {
     Args *args;
     FileInfo *files_info;
     pthread_mutex_t task_lock;
-    pthread_barrier_t barrier;
     size_t file_count, file_index, result_index;
+    pthread_barrier_t barrier, reducers_barrier;
 } JobInfo;
 
 

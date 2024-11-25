@@ -71,12 +71,18 @@ void *reducer(void *arg)
     // Wait for Mapper threads to finish
     pthread_barrier_wait(&args->job->barrier);
 
-    int index;
-    while ((index = pick_a_letter(args->job)) >= 0) {
+    int start = args->id * (double)ALPHABET_SIZE / args->job->args->R;
+    int end = (args->id + 1) * (double)ALPHABET_SIZE / args->job->args->R;
+    end = MIN(end, ALPHABET_SIZE);
+
+    for (int index = start; index < end; index++)
         get_words_starting_with_letter(args->trie, 'a' + index, args->results[index]);
 
-        sort_list(args->results[index], get_word_freq);
+    pthread_barrier_wait(&args->job->reducers_barrier);
 
+    int index;
+    while ((index = pick_a_letter(args->job)) >= 0) {
+        sort_list(args->results[index], get_word_freq);
         write_result('a' + index, args->results[index]);
     }
 

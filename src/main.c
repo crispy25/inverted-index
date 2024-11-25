@@ -44,6 +44,7 @@ JobInfo *init_job(Args *args)
 
     pthread_mutex_init(&job_info->task_lock, NULL);
     pthread_barrier_init(&job_info->barrier, NULL, args->M + args->R);
+    pthread_barrier_init(&job_info->reducers_barrier, NULL, args->R);
 
     FILE* master_file = fopen(args->file, "r");
     if (!master_file) {
@@ -51,6 +52,7 @@ JobInfo *init_job(Args *args)
         exit(0);
     }
 
+    // Open and read the file with all the files to be processed
     int file_count;
     fscanf(master_file, "%d\n", &file_count);
     job_info->file_count = file_count;
@@ -62,6 +64,7 @@ JobInfo *init_job(Args *args)
         CHECK_MALLOC(job_info->files_info[i].name);
     }
 
+    // Open each file, get the size, name, id and store it
     int index = 0;
     while (file_count > 0) {
         // Read and open file
@@ -96,6 +99,7 @@ void run_job(JobInfo *job)
 {
     size_t thread_count = job->args->M + job->args->R;
 
+    ThreadArgs thread_args[thread_count];
     pthread_t threads[thread_count];
     void *status;
     int r;
@@ -105,8 +109,6 @@ void run_job(JobInfo *job)
         results[i] = create_list();
 
     AtomicTrie *trie = create_atomic_tree();
-
-    ThreadArgs thread_args[thread_count];
 
     // Arguments for threads
     for (int i = 0; i < thread_count; i++) {
@@ -162,6 +164,7 @@ void free_job_info(JobInfo **job_info)
 
     pthread_mutex_destroy(&(*job_info)->task_lock);
     pthread_barrier_destroy(&(*job_info)->barrier);   
+    pthread_barrier_destroy(&(*job_info)->reducers_barrier);   
 
     free((*job_info)->files_info);
     free(*job_info);
